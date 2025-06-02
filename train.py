@@ -16,35 +16,45 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from model import Discriminator, Generator, initialize_weights
+import torchvision.utils as utils
 
 # Hyperparameters etc.
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-LEARNING_RATE = 2e-4  # could also use two lrs, one for gen and one for disc
-BATCH_SIZE = 128
+LEARNING_RATE = 1e-4  # could also use two lrs, one for gen and one for disc
+BATCH_SIZE = 16
 IMAGE_SIZE = 64
-CHANNELS_IMG = 1
+CHANNELS_IMG = 3
 NOISE_DIM = 100
-NUM_EPOCHS = 5
+NUM_EPOCHS = 2500
 FEATURES_DISC = 64
 FEATURES_GEN = 64
 
-transforms = transforms.Compose(
-    [
-        transforms.Resize(IMAGE_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            [0.5 for _ in range(CHANNELS_IMG)], [0.5 for _ in range(CHANNELS_IMG)]
-        ),
-    ]
-)
+transforms = transforms.Compose([
+    transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+    transforms.RandomHorizontalFlip(p=0.5),               # Random flip
+    transforms.RandomRotation(degrees=15),                # Small rotations
+    transforms.ColorJitter(brightness=0.2, contrast=0.2), # Slight color variation
+    transforms.ToTensor(),
+    transforms.Normalize([0.5] * CHANNELS_IMG, [0.5] * CHANNELS_IMG),
+])
+
+# transforms = transforms.Compose(
+#     [
+#         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+#         transforms.ToTensor(),
+#         transforms.Normalize(
+#             [0.5 for _ in range(CHANNELS_IMG)], [0.5 for _ in range(CHANNELS_IMG)]
+#         ),
+#     ]
+# )
 
 # If you train on MNIST, remember to set channels_img to 1
-dataset = datasets.MNIST(
-    root="dataset/", train=True, transform=transforms, download=True
-)
+# dataset = datasets.MNIST(
+#     root="dataset/", train=True, transform=transforms, download=True
+# )
 
 # comment mnist above and uncomment below if train on CelebA
-# dataset = datasets.ImageFolder(root="celeb_dataset", transform=transforms)
+dataset = datasets.ImageFolder(root="dataset", transform=transforms)
 dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 gen = Generator(NOISE_DIM, CHANNELS_IMG, FEATURES_GEN).to(device)
 disc = Discriminator(CHANNELS_IMG, FEATURES_DISC).to(device)
@@ -93,14 +103,23 @@ for epoch in range(NUM_EPOCHS):
                 f"Epoch [{epoch}/{NUM_EPOCHS}] Batch {batch_idx}/{len(dataloader)} \
                   Loss D: {loss_disc:.4f}, loss G: {loss_gen:.4f}"
             )
+            if epoch % 25 == 0:
+                with torch.no_grad():
+                    fake = fake[:32]
+                    utils.save_image(
+                        fake,
+                        f"generated_emojis_augmented/fake_epoch{epoch}.png",
+                        normalize=True,
+                        nrow=8  # 8x4 grid
+                    )
 
-            with torch.no_grad():
-                fake = gen(fixed_noise)
-                # take out (up to) 32 examples
-                img_grid_real = torchvision.utils.make_grid(real[:32], normalize=True)
-                img_grid_fake = torchvision.utils.make_grid(fake[:32], normalize=True)
+            # with torch.no_grad():
+            #     fake = gen(fixed_noise)
+            #     # take out (up to) 32 examples
+            #     img_grid_real = torchvision.utils.make_grid(real[:32], normalize=True)
+            #     img_grid_fake = torchvision.utils.make_grid(fake[:32], normalize=True)
 
-                writer_real.add_image("Real", img_grid_real, global_step=step)
-                writer_fake.add_image("Fake", img_grid_fake, global_step=step)
+            #     writer_real.add_image("Real", img_grid_real, global_step=step)
+            #     writer_fake.add_image("Fake", img_grid_fake, global_step=step)
 
             step += 1
