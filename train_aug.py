@@ -29,24 +29,24 @@ NUM_EPOCHS = 2500
 FEATURES_DISC = 64
 FEATURES_GEN = 64
 
-# transforms = transforms.Compose([
-#     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-#     transforms.RandomHorizontalFlip(p=0.5),               # Random flip
-#     transforms.RandomRotation(degrees=15),                # Small rotations
-#     transforms.ColorJitter(brightness=0.2, contrast=0.2), # Slight color variation
-#     transforms.ToTensor(),
-#     transforms.Normalize([0.5] * CHANNELS_IMG, [0.5] * CHANNELS_IMG),
-# ])
+transforms = transforms.Compose([
+    transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+    transforms.RandomHorizontalFlip(p=0.5),               # Random flip
+    transforms.RandomRotation(degrees=15),                # Small rotations
+    transforms.ColorJitter(brightness=0.2, contrast=0.2), # Slight color variation
+    transforms.ToTensor(),
+    transforms.Normalize([0.5] * CHANNELS_IMG, [0.5] * CHANNELS_IMG),
+])
 
-transforms = transforms.Compose(
-    [
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            [0.5 for _ in range(CHANNELS_IMG)], [0.5 for _ in range(CHANNELS_IMG)]
-        ),
-    ]
-)
+# transforms = transforms.Compose(
+#     [
+#         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+#         transforms.ToTensor(),
+#         transforms.Normalize(
+#             [0.5 for _ in range(CHANNELS_IMG)], [0.5 for _ in range(CHANNELS_IMG)]
+#         ),
+#     ]
+# )
 
 # If you train on MNIST, remember to set channels_img to 1
 # dataset = datasets.MNIST(
@@ -108,7 +108,7 @@ for epoch in range(NUM_EPOCHS):
                     fake = fake[:32]
                     utils.save_image(
                         fake,
-                        f"generated_emojis/normal_more/fake_epoch{epoch}.png",
+                        f"generated_emojis/aug_more/fake_epoch{epoch}.png",
                         normalize=True,
                         nrow=8  # 8x4 grid
                     )

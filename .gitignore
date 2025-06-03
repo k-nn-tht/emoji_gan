@@ -1,5 +1,4 @@
 /dataset
 /__pycache__
 /logs
-/generated_emojis_augmented
-/generated_emojis_normal
+/generated_emojis
