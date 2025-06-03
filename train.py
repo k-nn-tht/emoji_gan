@@ -85,12 +85,6 @@ for epoch in range(NUM_EPOCHS):
         noise = torch.randn(BATCH_SIZE, NOISE_DIM, 1, 1).to(device)
         fake = gen(noise)
 
-        # if epoch % 50 == 0:
-        #     test_noise = torch.randn(32, NOISE_DIM, 1, 1).to(device)
-        #     test_imgs = gen(test_noise)
-        #     utils.save_image(test_imgs, f"generated_emojis/debug_random_epoch{epoch}.png", normalize=True, nrow=8)
-
-
         ### Train Discriminator: max log(D(x)) + log(1 - D(G(z)))
         disc_real = disc(real).reshape(-1)
         loss_disc_real = criterion(disc_real, torch.full_like(disc_real, 0.9))

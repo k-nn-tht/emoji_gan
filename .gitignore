@@ -2,3 +2,4 @@
 /__pycache__
 /logs
 /generated_emojis
+/dataset_with_labels

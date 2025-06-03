@@ -15,7 +15,7 @@ import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from model import Discriminator, Generator, initialize_weights
+from model_words import Discriminator, Generator, initialize_weights
 import torchvision.utils as utils
 from torch.utils.data import Dataset
 import random
@@ -30,15 +30,8 @@ NOISE_DIM = 100
 NUM_EPOCHS = 300
 FEATURES_DISC = 64
 FEATURES_GEN = 64
-
-# transforms = transforms.Compose([
-#     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-#     transforms.RandomHorizontalFlip(p=0.5),               # Random flip
-#     transforms.RandomRotation(degrees=15),                # Small rotations
-#     transforms.ColorJitter(brightness=0.2, contrast=0.2), # Slight color variation
-#     transforms.ToTensor(),
-#     transforms.Normalize([0.5] * CHANNELS_IMG, [0.5] * CHANNELS_IMG),
-# ])
+NUM_CLASSES = 100
+EMBED_SIZE = 100
 
 transforms = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -49,21 +42,6 @@ transforms = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize([0.5] * CHANNELS_IMG, [0.5] * CHANNELS_IMG),
 ])
-
-# transforms = transforms.Compose(
-#     [
-#         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-#         transforms.ToTensor(),
-#         transforms.Normalize(
-#             [0.5 for _ in range(CHANNELS_IMG)], [0.5 for _ in range(CHANNELS_IMG)]
-#         ),
-#     ]
-# )
-
-# If you train on MNIST, remember to set channels_img to 1
-# dataset = datasets.MNIST(
-#     root="dataset/", train=True, transform=transforms, download=True
-# )
 
 # comment mnist above and uncomment below if train on CelebA
 class RepeatDataset(torch.utils.data.Dataset):
@@ -82,8 +60,8 @@ base_dataset = datasets.ImageFolder(root="dataset", transform=transforms)
 dataset = RepeatDataset(base_dataset, repeat_factor=10)
 # dataset = datasets.ImageFolder(root="dataset", transform=transforms)
 dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-gen = Generator(NOISE_DIM, CHANNELS_IMG, FEATURES_GEN).to(device)
-disc = Discriminator(CHANNELS_IMG, FEATURES_DISC).to(device)
+gen = Generator(NOISE_DIM, CHANNELS_IMG, FEATURES_GEN, NUM_CLASSES, EMBED_SIZE).to(device)
+disc = Discriminator(CHANNELS_IMG, FEATURES_DISC, NUM_CLASSES, EMBED_SIZE).to(device)
 initialize_weights(gen)
 initialize_weights(disc)
 
@@ -102,56 +80,53 @@ gen.train()
 disc.train()
 
 for epoch in range(NUM_EPOCHS):
-    # Target labels not needed! <3 unsupervised
-    for batch_idx, (real, _) in enumerate(dataloader):
+    for batch_idx, (real, labels) in enumerate(dataloader):
         real = real.to(device)
-        real += 0.05 * torch.randn_like(real)
-        # Adding noise to the real images for data augmentation
+        labels = labels.to(device)
+        real += 0.05 * torch.randn_like(real)  # Add slight noise for augmentation
 
-        noise = torch.randn(BATCH_SIZE, NOISE_DIM, 1, 1).to(device)
-        fake = gen(noise)
+        ### Train Discriminator
+        # noise = torch.randn(BATCH_SIZE, NOISE_DIM).to(device)
+        # noise = torch.randn(BATCH_SIZE, NOISE_DIM, 1, 1).to(device)
+        noise = torch.randn(labels.size(0), NOISE_DIM).to(device)
 
-        ### Train Discriminator: max log(D(x)) + log(1 - D(G(z)))
-        disc_real = disc(real).reshape(-1)
+        fake = gen(noise, labels)
+
+        disc_real = disc(real, labels).reshape(-1)
         loss_disc_real = criterion(disc_real, torch.full_like(disc_real, 0.9))
-        # 0.9 instead of 1.0 to avoid saturation and vanishing gradients
-        disc_fake = disc(fake.detach()).reshape(-1)
+
+        disc_fake = disc(fake.detach(), labels).reshape(-1)
         loss_disc_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
+
         loss_disc = (loss_disc_real + loss_disc_fake) / 2
         disc.zero_grad()
         loss_disc.backward()
         opt_disc.step()
 
-        ### Train Generator: min log(1 - D(G(z))) <-> max log(D(G(z))
-        output = disc(fake).reshape(-1)
+        ### Train Generator
+        output = disc(fake, labels).reshape(-1)
         loss_gen = criterion(output, torch.ones_like(output))
         gen.zero_grad()
         loss_gen.backward()
         opt_gen.step()
 
-        # Print losses occasionally and print to tensorboard
+        ### Logging and Saving
         if batch_idx % 100 == 0:
             print(
-                f"Epoch [{epoch}/{NUM_EPOCHS}] Batch {batch_idx}/{len(dataloader)} \
-                  Loss D: {loss_disc:.4f}, loss G: {loss_gen:.4f}"
+                f"Epoch [{epoch}/{NUM_EPOCHS}] Batch {batch_idx}/{len(dataloader)} "
+                f"Loss D: {loss_disc:.4f}, Loss G: {loss_gen:.4f}"
             )
-            if epoch % 25 == 0:
+
+            if epoch % 10 == 0:
                 with torch.no_grad():
-                    fake = gen(fixed_noise)
+                    sample_labels = torch.randint(0, NUM_CLASSES, (32,)).to(device)
+                    sample_noise = torch.randn(32, NOISE_DIM, 1, 1).to(device)
+                    fake = gen(sample_noise, sample_labels)
                     utils.save_image(
                         fake,
-                        f"generated_emojis/aug_more_2/fake_epoch{epoch}.png",
+                        f"generated_emojis/conditional/fake_epoch{epoch}.png",
                         normalize=True,
                         nrow=8
                     )
-
-            # with torch.no_grad():
-            #     fake = gen(fixed_noise)
-            #     # take out (up to) 32 examples
-            #     img_grid_real = torchvision.utils.make_grid(real[:32], normalize=True)
-            #     img_grid_fake = torchvision.utils.make_grid(fake[:32], normalize=True)
-
-            #     writer_real.add_image("Real", img_grid_real, global_step=step)
-            #     writer_fake.add_image("Fake", img_grid_fake, global_step=step)
 
             step += 1
