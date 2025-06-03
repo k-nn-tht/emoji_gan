@@ -62,7 +62,9 @@ initialize_weights(gen)
 initialize_weights(disc)
 
 opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
-opt_disc = optim.Adam(disc.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
+# opt_disc = optim.Adam(disc.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
+opt_disc = optim.Adam(disc.parameters(), lr=LEARNING_RATE * 0.5, betas=(0.5, 0.999))
+
 criterion = nn.BCELoss()
 
 fixed_noise = torch.randn(32, NOISE_DIM, 1, 1).to(device)
@@ -77,12 +79,22 @@ for epoch in range(NUM_EPOCHS):
     # Target labels not needed! <3 unsupervised
     for batch_idx, (real, _) in enumerate(dataloader):
         real = real.to(device)
+        real += 0.05 * torch.randn_like(real)
+        # Adding noise to the real images for data augmentation
+
         noise = torch.randn(BATCH_SIZE, NOISE_DIM, 1, 1).to(device)
         fake = gen(noise)
 
+        # if epoch % 50 == 0:
+        #     test_noise = torch.randn(32, NOISE_DIM, 1, 1).to(device)
+        #     test_imgs = gen(test_noise)
+        #     utils.save_image(test_imgs, f"generated_emojis/debug_random_epoch{epoch}.png", normalize=True, nrow=8)
+
+
         ### Train Discriminator: max log(D(x)) + log(1 - D(G(z)))
         disc_real = disc(real).reshape(-1)
-        loss_disc_real = criterion(disc_real, torch.ones_like(disc_real))
+        loss_disc_real = criterion(disc_real, torch.full_like(disc_real, 0.9))
+        # 0.9 instead of 1.0 to avoid saturation and vanishing gradients
         disc_fake = disc(fake.detach()).reshape(-1)
         loss_disc_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
         loss_disc = (loss_disc_real + loss_disc_fake) / 2
@@ -105,12 +117,12 @@ for epoch in range(NUM_EPOCHS):
             )
             if epoch % 25 == 0:
                 with torch.no_grad():
-                    fake = fake[:32]
+                    fake = gen(fixed_noise)
                     utils.save_image(
                         fake,
                         f"generated_emojis/aug_more/fake_epoch{epoch}.png",
                         normalize=True,
-                        nrow=8  # 8x4 grid
+                        nrow=8
                     )
 
             # with torch.no_grad():
